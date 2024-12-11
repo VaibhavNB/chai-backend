@@ -2,6 +2,7 @@ import { ApiError } from "../utils/ApiError.js";
 import {asyncHandler} from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/Cloudinary.js";
 
 const registerUser  = asyncHandler(async (req, res) => {
     // code to register user
@@ -23,7 +24,7 @@ const registerUser  = asyncHandler(async (req, res) => {
  
     // get the user data from from frontend
     const {fullName,email,username,password} = req.body
-    console.log("email: ",email);
+    
 
     // validate the user data
     if ([fullName, email, username, password].some((field)=>{field?.trim() === ""})) {
@@ -31,9 +32,13 @@ const registerUser  = asyncHandler(async (req, res) => {
     }
     
     // check if the user already exists
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or: [{username},{email}]
     })
+
+    
+
+
     // throw error if user exists
     if (existedUser) {
         throw new ApiError(409,"User already exists");
@@ -41,7 +46,12 @@ const registerUser  = asyncHandler(async (req, res) => {
 
     // check for images
     const avatarLocalPath =  req.files?.avatar[0]?.path;
-    const coverImageLocalPath =  req.files?.coverImage[0]?.path;
+    // const coverImageLocalPath =  req.files?.coverImage[0]?.path;
+
+    let coverImageLocalPath;
+    if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
 
     // check for avatar
     if (!avatarLocalPath) {
@@ -49,11 +59,14 @@ const registerUser  = asyncHandler(async (req, res) => {
     }
 
     // upload them to cloudinary
-    const avatar = await uploadOnCloudinary.uploader.upload(avatarLocalPath);
-    const coverImage = await uploadOnCloudinary.uploader.upload(coverImageLocalPath);
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
-    if (!avatar || !coverImage) {
-        throw new ApiError(500,"Failed to upload images");
+    
+    
+
+    if (!avatar) {
+        throw new ApiError(400,"Failed to upload images");
     }
 
     // create user object
@@ -73,7 +86,7 @@ const registerUser  = asyncHandler(async (req, res) => {
     }
 
     return res.status(201).json(
-        new ApiResponse(201,createdUser,"User registered successfully")
+        new ApiResponse(200,createdUser,"User registered successfully")
     );
 
 });
